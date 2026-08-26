@@ -59,8 +59,23 @@ function dbWrite(name, data) { fs.writeFileSync(dbPath(name), JSON.stringify(dat
 
 // ── Middleware ──
 app.use(compression()); // gzip JSON/static responses — meaningful win on slower connections
+
+// Temporary request logger — logs every incoming request and the Origin header
+// it arrived with, so CORS mismatches are visible in Render's Logs tab.
+// Safe to remove once things are working.
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.path} — Origin: ${req.headers.origin || '(none)'}`);
+  next();
+});
+
 app.use(cors({
-  origin: FRONTEND_ORIGINS.length ? FRONTEND_ORIGINS : true, // reflect origin if none configured (dev-friendly; set FRONTEND_URL in prod)
+  origin: (origin, callback) => {
+    if (!origin || !FRONTEND_ORIGINS.length || FRONTEND_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    console.log(`[CORS BLOCKED] Origin "${origin}" is not in FRONTEND_URL: [${FRONTEND_ORIGINS.join(', ')}]`);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: false // Bearer-token auth is used, not cookies, so credentials aren't needed
 }));
 app.use(express.json({ limit: '2mb' })); // chat/canvas payloads are small; large media goes through multer instead
