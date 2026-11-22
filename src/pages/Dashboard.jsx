@@ -52,22 +52,24 @@ export default function Dashboard() {
         <div className="col-main">
           <section>
             <div className="sec-head"><h2>Upcoming meetings</h2><Link to="/meetings">All meetings <ArrowRight size={14} /></Link></div>
-            <ErrorNote error={upcoming.error} />
+            <ErrorNote error={upcoming.error || live.error} onRetry={() => { upcoming.retry(); live.retry(); }} />
             {upcoming.loading ? <ListSkeleton /> : upcoming.data.length ? <ul className="rows">{upcoming.data.map((m) => <MeetingRow key={m.id} m={m} />)}</ul> : <p className="muted">No meetings scheduled right now.</p>}
           </section>
           <section>
             <div className="sec-head"><h2>Latest announcements</h2><Link to="/announcements">View all <ArrowRight size={14} /></Link></div>
-            <ErrorNote error={ann.error} />
+            <ErrorNote error={ann.error} onRetry={ann.retry} />
             {ann.loading ? <ListSkeleton /> : announcements.length ? <div className="stack">{announcements.map((a) => <AnnouncementItem key={a.id} a={a} compact />)}</div> : <p className="muted"><Megaphone size={14} /> Nothing has been announced yet.</p>}
           </section>
         </div>
         <aside className="col-side">
           <section>
             <div className="sec-head"><h2>Recent recordings</h2><Link to="/recordings">Library <ArrowRight size={14} /></Link></div>
+            <ErrorNote error={recs.error} onRetry={recs.retry} />
             {recs.loading ? <ListSkeleton rows={2} /> : recs.data.length ? <ul className="rows tight">{recs.data.map((r) => <RecordingRow key={r.id} r={r} onPlay={setPlaying} compact />)}</ul> : <p className="muted">No recordings yet.</p>}
           </section>
           <section>
             <div className="sec-head"><h2>Testimonies</h2><Link to="/testimonies">Read more <ArrowRight size={14} /></Link></div>
+            <ErrorNote error={tests.error} onRetry={tests.retry} />
             {tests.loading ? <ListSkeleton rows={2} /> : tests.data.length ? tests.data.map((t) => (
               <blockquote key={t.id} className="quote"><p className="clamp serif">{t.body}</p><footer>{t.authorName}</footer></blockquote>
             )) : <p className="muted">Be the first to share what God has done.</p>}

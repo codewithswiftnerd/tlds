@@ -1,4 +1,5 @@
-import { addDoc, collection, deleteDoc, doc, orderBy, query, serverTimestamp, updateDoc, where, limit } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { sortedQuery } from '../utils/sortedQuery';
 import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from './firebase';
 import { postFeed } from './feed';
@@ -7,9 +8,10 @@ import { notifyMember } from './notifications';
 export const TESTIMONY_CATEGORIES = ['Healing', 'Provision', 'Salvation', 'Breakthrough', 'Answered prayer', 'Other'];
 const col = () => collection(db, 'testimonies');
 
-export const approvedQuery = (n) => query(col(), where('status', '==', 'approved'), orderBy('createdAt', 'desc'), ...(n ? [limit(n)] : []));
-export const mineQuery = (uid) => query(col(), where('authorId', '==', uid), orderBy('createdAt', 'desc'));
-export const pendingQuery = () => query(col(), where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+// Sorted in the app (sortedQuery), so these work without composite indexes in Firebase.
+export const approvedQuery = (n) => sortedQuery(query(col(), where('status', '==', 'approved')), 'createdAt', 'desc', n || 0);
+export const mineQuery = (uid) => sortedQuery(query(col(), where('authorId', '==', uid)), 'createdAt', 'desc');
+export const pendingQuery = () => sortedQuery(query(col(), where('status', '==', 'pending')), 'createdAt', 'desc');
 export const allQuery = () => query(col(), orderBy('createdAt', 'desc'));
 
 export async function submitTestimony(profile, { title, body, category, file }, onProgress) {

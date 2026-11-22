@@ -8,7 +8,7 @@ export function ToastProvider({ children }) {
   const push = useCallback((message, type = 'info') => {
     const id = Math.random().toString(36).slice(2);
     setItems((l) => [...l, { id, message, type }]);
-    setTimeout(() => setItems((l) => l.filter((t) => t.id !== id)), 4500);
+    setTimeout(() => setItems((l) => l.filter((t) => t.id !== id)), type === 'error' ? 10000 : 4500);
   }, []);
   return (
     <Ctx.Provider value={push}>

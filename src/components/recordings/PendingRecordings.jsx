@@ -3,7 +3,7 @@ import { CloudUpload, Download, Trash2 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { unsavedRecordings, removeRecording } from '../../services/recordingStore';
 import { rebuildFromDevice } from '../../services/recorder';
-import { fileNameFor, saveToDevice, uploadRecording } from '../../services/recordings';
+import { fileNameFor, saveToDevice, uploadErrorMessage, uploadRecording } from '../../services/recordings';
 import { fmtDateTime, fmtDuration } from '../../utils/format';
 
 /**
@@ -30,7 +30,7 @@ export default function PendingRecordings({ profile }) {
       toast('Recording uploaded to the library.', 'success');
     } catch (e) {
       console.error(e);
-      toast(e?.code === 'storage/unauthorized' ? 'Upload refused: your account is not allowed to add recordings for this meeting.' : 'Upload failed. Check your connection and try again.', 'error');
+      toast(uploadErrorMessage(e), 'error');
     }
     setBusy((b) => { const n = { ...b }; delete n[m.id]; return n; });
     load();

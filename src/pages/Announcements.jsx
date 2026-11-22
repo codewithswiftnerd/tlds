@@ -7,6 +7,7 @@ import { announcementsQuery, CATEGORIES, deleteAnnouncement, removeAttachment, s
 import { Empty, ErrorNote, ListSkeleton, PageHead } from '../components/common/States';
 import AnnouncementItem from '../components/announcements/AnnouncementItem';
 import Modal from '../components/common/Modal';
+import { explainError, withTimeout } from '../utils/errors';
 
 const toLocalInput = (d) => (d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '');
 
@@ -25,10 +26,11 @@ function Editor({ existing, onClose }) {
   const submit = async (e) => {
     e.preventDefault(); setBusy(true);
     try {
-      await saveAnnouncement(profile, current, { ...f, publishAt: f.publishAt ? new Date(f.publishAt) : null, image, files });
+      // Never leave the button spinning: if the server has not confirmed within 45 s, say so.
+      await withTimeout(saveAnnouncement(profile, current, { ...f, publishAt: f.publishAt ? new Date(f.publishAt) : null, image, files }), 45000);
       toast(existing ? 'Announcement updated.' : 'Announcement published.', 'success');
       onClose();
-    } catch (err) { console.error(err); toast('Could not save the announcement.', 'error'); setBusy(false); }
+    } catch (err) { console.error('announcement save failed', err?.code, err); toast(`Could not save the announcement. ${explainError(err)}`, 'error'); setBusy(false); }
   };
   const dropFile = async (path) => {
     try { await removeAttachment(current, path); setCurrent({ ...current, attachments: current.attachments.filter((x) => x.path !== path) }); }
@@ -60,7 +62,7 @@ function Editor({ existing, onClose }) {
 export default function Announcements() {
   const { isAdmin } = useAuth();
   const toast = useToast();
-  const { data, loading, error } = useQuery(announcementsQuery, []);
+  const { data, loading, error, retry } = useQuery(announcementsQuery, []);
   const [cat, setCat] = useState('All');
   const [editing, setEditing] = useState(null); // null | {} (new) | announcement
   const list = visibleAnnouncements(data, isAdmin).filter((a) => cat === 'All' || a.category === cat);
@@ -68,7 +70,7 @@ export default function Announcements() {
 
   const remove = async (a) => {
     if (!window.confirm('Delete this announcement?')) return;
-    try { await deleteAnnouncement(a); toast('Announcement deleted.'); } catch { toast('Could not delete.', 'error'); }
+    try { await deleteAnnouncement(a); toast('Announcement deleted.'); } catch (e) { toast(`Could not delete. ${explainError(e)}`, 'error'); }
   };
 
   return (
@@ -77,7 +79,7 @@ export default function Announcements() {
         {isAdmin && <button className="btn primary" onClick={() => setEditing({})}><Plus size={16} /> New</button>}
       </PageHead>
       {cats.length > 2 && <div className="chips" role="tablist">{cats.map((c) => <button key={c} className={`chip ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>{c}</button>)}</div>}
-      <ErrorNote error={error} />
+      <ErrorNote error={error} onRetry={retry} />
       {loading ? <ListSkeleton rows={4} /> : list.length ? <div className="stack">{list.map((a) => <AnnouncementItem key={a.id} a={a} admin={isAdmin} onEdit={setEditing} onDelete={remove} />)}</div> : <Empty title="No announcements" text="New announcements will appear here." />}
       {editing && <Editor existing={editing.id ? editing : null} onClose={() => setEditing(null)} />}
     </div>

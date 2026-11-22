@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { goLive, endMeeting } from '../services/meetings';
-import { fileNameFor, saveToDevice, uploadRecording } from '../services/recordings';
+import { fileNameFor, saveToDevice, uploadErrorMessage, uploadRecording } from '../services/recordings';
 import { MeetingRecorder, recordingSupport } from '../services/recorder';
 import { fetchRoomToken, mediaErrorMessage, RoomClient, roomAdmin } from '../services/webrtc';
 import { useToast } from '../context/ToastContext';
@@ -144,7 +144,7 @@ export function useMeetingRoom(meetingId, user, profile) {
       toast('Recording saved to the library.', 'success');
     } catch (e) {
       console.error(e);
-      setUpload({ progress: 0, error: e?.code === 'storage/quota-exceeded' ? 'Upload failed: the storage space is full.' : 'Upload failed. The recording is safe on this device.' });
+      setUpload({ progress: 0, error: uploadErrorMessage(e) });
     }
   }, [profile, toast]);
 

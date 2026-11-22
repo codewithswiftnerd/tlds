@@ -31,3 +31,7 @@ function makeDb() {
 }
 export const db = makeDb();
 export const storage = getStorage(app);
+// By default the SDK silently retries a failing upload for 10 minutes while showing 0%. Give up after 1 minute
+// instead, so the app can show a real error (our own upload code retries a few times on top of this).
+storage.maxUploadRetryTime = 60 * 1000;
+storage.maxOperationRetryTime = 60 * 1000;

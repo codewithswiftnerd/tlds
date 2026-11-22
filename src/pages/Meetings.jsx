@@ -9,6 +9,7 @@ import { ErrorNote, ListSkeleton, PageHead } from '../components/common/States';
 import MeetingRow from '../components/meetings/MeetingRow';
 import Modal from '../components/common/Modal';
 import { toDate } from '../utils/format';
+import { explainError, withTimeout } from '../utils/errors';
 
 const pad = (n) => String(n).padStart(2, '0');
 const dateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -34,11 +35,11 @@ function MeetingForm({ existing, onClose }) {
     setBusy(true);
     const data = { title: f.title.trim(), description: f.description.trim(), duration: f.duration.trim(), when, speakingMode: f.moderated ? 'moderated' : 'open' };
     try {
-      if (existing) await updateMeeting(existing.id, data);
-      else await scheduleMeeting(profile, { ...data, repeatWeeks: f.repeatWeeks });
+      if (existing) await withTimeout(updateMeeting(existing.id, data), 45000);
+      else await withTimeout(scheduleMeeting(profile, { ...data, repeatWeeks: f.repeatWeeks }), 45000);
       toast(existing ? 'Meeting updated.' : Number(f.repeatWeeks) > 1 ? `${f.repeatWeeks} weekly meetings scheduled.` : 'Meeting scheduled.', 'success');
       onClose();
-    } catch { toast(existing ? 'Could not save the meeting.' : 'Could not schedule the meeting.', 'error'); setBusy(false); }
+    } catch (e) { console.error(e); toast(`${existing ? 'Could not save the meeting.' : 'Could not schedule the meeting.'} ${explainError(e)}`, 'error'); setBusy(false); }
   };
 
   return (
@@ -102,8 +103,8 @@ export default function Meetings() {
     const title = window.prompt('Meeting title', `${profile.firstName || profile.name}'s meeting`);
     if (title === null) return;
     setBusy(true);
-    try { nav(`/meetings/${await startMeetingNow(profile, title.trim())}`); }
-    catch { toast('Could not start a meeting.', 'error'); setBusy(false); }
+    try { nav(`/meetings/${await withTimeout(startMeetingNow(profile, title.trim()), 45000)}`); }
+    catch (e) { console.error(e); toast(`Could not start a meeting. ${explainError(e)}`, 'error'); setBusy(false); }
   };
 
   return (
@@ -114,7 +115,7 @@ export default function Meetings() {
           <button className="btn primary" onClick={startNow} disabled={busy}><Radio size={16} /> Start now</button>
         </>}
       </PageHead>
-      <ErrorNote error={live.error || upcoming.error || past.error} />
+      <ErrorNote error={live.error || upcoming.error || past.error} onRetry={() => { live.retry(); upcoming.retry(); past.retry(); }} />
       {live.data.length > 0 && <section><h2 className="sec">Live now</h2><ul className="rows">{live.data.map((m) => <MeetingRow key={m.id} m={m} />)}</ul></section>}
       <section>
         <h2 className="sec">Upcoming</h2>

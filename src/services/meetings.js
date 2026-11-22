@@ -1,6 +1,7 @@
 import {
-  addDoc, collection, deleteDoc, doc, limit, orderBy, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch,
+  addDoc, collection, deleteDoc, doc, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
+import { sortedQuery } from '../utils/sortedQuery';
 import { db } from './firebase';
 import { postFeed } from './feed';
 import { toDate } from '../utils/format';
@@ -8,8 +9,9 @@ import { toDate } from '../utils/format';
 const col = () => collection(db, 'meetings');
 
 export const liveMeetingsQuery = () => query(col(), where('status', '==', 'live'));
-export const upcomingMeetingsQuery = (n = 50) => query(col(), where('status', '==', 'scheduled'), orderBy('scheduledFor', 'asc'), limit(n));
-export const pastMeetingsQuery = (n = 15) => query(col(), where('status', '==', 'ended'), orderBy('endedAt', 'desc'), limit(n));
+// Sorted in the app (sortedQuery), so these work without composite indexes in Firebase.
+export const upcomingMeetingsQuery = (n = 50) => sortedQuery(query(col(), where('status', '==', 'scheduled')), 'scheduledFor', 'asc', n);
+export const pastMeetingsQuery = (n = 15) => sortedQuery(query(col(), where('status', '==', 'ended')), 'endedAt', 'desc', n);
 
 const floorDefaults = { currentSpeakerUid: null, everyoneMuted: false, removedUids: [], moderatorUids: [], recording: false, recordingBy: null };
 

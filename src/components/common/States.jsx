@@ -1,3 +1,5 @@
+import { explainError } from '../../utils/errors';
+
 export const Spinner = ({ label = 'Loading' }) => <div className="spinner" role="status" aria-label={label} />;
 
 export function PageLoader() {
@@ -19,9 +21,14 @@ export function ListSkeleton({ rows = 3 }) {
   return <div aria-busy="true">{Array.from({ length: rows }, (_, i) => <div key={i} className="skeleton-row" />)}</div>;
 }
 
-export function ErrorNote({ error }) {
+export function ErrorNote({ error, onRetry }) {
   if (!error) return null;
-  return <p className="error-note" role="alert">Could not load this section{error.code === 'permission-denied' ? ' (permission denied)' : ''}. Please refresh and try again.</p>;
+  return (
+    <div className="error-note" role="alert">
+      <p><strong>Could not load this section.</strong> {explainError(error)}</p>
+      <button type="button" className="link" onClick={onRetry || (() => window.location.reload())}>Try again</button>
+    </div>
+  );
 }
 
 export const PageHead = ({ title, sub, children }) => (

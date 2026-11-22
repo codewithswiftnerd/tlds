@@ -1,11 +1,12 @@
-import { addDoc, arrayUnion, collection, doc, limit, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { addDoc, arrayUnion, collection, doc, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { sortedQuery } from '../utils/sortedQuery';
 import { getToken, getMessaging, isSupported, onMessage } from 'firebase/messaging';
 import { db, firebaseConfig, app } from './firebase';
 import { writeFeed } from './feed';
 
 /** Personal notifications (e.g. "your testimony was published"). Community news lives in the feed (services/feed.js). */
 export const notificationsQuery = (uid, n = 40) =>
-  query(collection(db, 'notifications'), where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(n));
+  sortedQuery(query(collection(db, 'notifications'), where('userId', '==', uid)), 'createdAt', 'desc', n);
 
 export const markRead = (id) => updateDoc(doc(db, 'notifications', id), { read: true });
 export async function markAllRead(items) {
