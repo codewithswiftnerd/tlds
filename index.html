@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B2B1D" />
+    <meta name="description" content="TLDS LIVE: live meetings, recordings, announcements and testimonies for the Tree of Life Discipleship School." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TLDS LIVE" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>TLDS LIVE</title>
+    <link rel="icon" href="/images/favicon.ico" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Startup guard: if the app crashes before it can draw anything, show the reason instead of a blank page.
+      (function () {
+        var shown = false;
+        function show(msg) {
+          var root = document.getElementById('root');
+          if (shown || !root || root.childElementCount) return;
+          shown = true;
+          root.innerHTML = '<div style="max-width:520px;margin:12vh auto;padding:24px;font:15px/1.5 system-ui,sans-serif;color:#1d2a23">' +
+            '<h1 style="font-size:22px;margin:0 0 8px">TLDS LIVE could not start</h1>' +
+            '<p style="margin:0 0 12px;color:#5b6b62">Please send this message to the site administrator:</p>' +
+            '<pre style="white-space:pre-wrap;word-break:break-word;background:#eef2ef;padding:12px;border-radius:8px;font-size:13px"></pre>' +
+            '<button onclick="location.reload()" style="margin-top:12px;padding:10px 16px;border:0;border-radius:8px;background:#145C3A;color:#fff;font-weight:600">Reload</button></div>';
+          root.querySelector('pre').textContent = msg;
+        }
+        window.__tldsStartupError = show;
+        window.addEventListener('error', function (e) { show((e.error && (e.error.stack || e.error.message)) || e.message || 'Unknown error'); });
+        window.addEventListener('unhandledrejection', function (e) { var r = e.reason; show((r && (r.stack || r.message)) || String(r)); });
+        setTimeout(function () { show('The app did not load after 20 seconds. Check your internet connection and reload. If this keeps happening, the site files may be missing or out of date.'); }, 20000);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

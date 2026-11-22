@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function me() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
+    function active() { return signedIn() && me().get('disabled', false) != true; }
+    function isAdmin() { return active() && me().role == 'admin'; }
+    function canHost() { return active() && me().role in ['admin', 'host']; }
+    function meeting(id) { return firestore.get(/databases/(default)/documents/meetings/$(id)).data; }
+    function isMeetingMod(id) {
+      return active() && (meeting(id).hostId == request.auth.uid || request.auth.uid in meeting(id).get('moderatorUids', []));
+    }
+    function isMedia() { return request.resource.contentType.matches('audio/.*|video/.*'); }
+    function isPoster() { return request.resource.contentType == 'image/jpeg' && request.resource.size < 2 * 1024 * 1024; }
+    function uploadedByMe() { return signedIn() && resource.metadata != null && resource.metadata.get('uploadedBy', '') == request.auth.uid; }
+
+    // Meeting recordings (audio or video) and their poster images. Recorded by the meeting's host or moderators.
+    match /recordings/{meetingId}/{fileName} {
+      allow read: if signedIn();
+      allow create: if (canHost() || isMeetingMod(meetingId)) &&
+        ((isMedia() && request.resource.size < 2 * 1024 * 1024 * 1024) || isPoster());
+      allow delete: if isAdmin() || uploadedByMe();
+      allow update: if false;
+    }
+    match /testimonies/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow create: if active() && request.auth.uid == uid && isMedia() && request.resource.size < 200 * 1024 * 1024;
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow update: if false;
+    }
+    match /music/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow create: if canHost() && request.auth.uid == uid && request.resource.contentType.matches('audio/.*') && request.resource.size < 50 * 1024 * 1024;
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow update: if false;
+    }
+    match /announcements/{fileName} {
+      allow read: if signedIn();
+      allow create: if isAdmin() && request.resource.size < 25 * 1024 * 1024;
+      allow delete: if isAdmin();
+      allow update: if false;
+    }
+  }
+}

@@ -1,0 +1,205 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function me() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    // Signed in AND not deactivated by an admin.
+    function active() { return signedIn() && me().get('disabled', false) != true; }
+    function isAdmin() { return active() && me().role == 'admin'; }
+    function canHost() { return active() && me().role in ['admin', 'host']; }
+    function validRole(r) { return r in ['admin', 'host', 'member']; }
+
+    function meeting(id) { return get(/databases/$(database)/documents/meetings/$(id)).data; }
+    // Authoritative checks read the meeting doc, never a client flag.
+    function isMeetingHost(id) { return active() && meeting(id).hostId == request.auth.uid; }
+    function isMeetingMod(id) {
+      return active() && (meeting(id).hostId == request.auth.uid ||
+                          request.auth.uid in meeting(id).get('moderatorUids', []));
+    }
+    function inMeeting(id) {
+      return active() && exists(/databases/$(database)/documents/meetings/$(id)/participants/$(request.auth.uid));
+    }
+    // The participant holding the floor may hand it back, and nothing else.
+    function isSelfEndingTurn() {
+      return signedIn() &&
+        resource.data.currentSpeakerUid == request.auth.uid &&
+        request.resource.data.currentSpeakerUid == null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentSpeakerUid']);
+    }
+    // The host has left a live meeting: a moderator or an admin who is in the meeting may take over as host.
+    function isHostClaim(id) {
+      return resource.data.status == 'live' &&
+        (isAdmin() || request.auth.uid in resource.data.get('moderatorUids', [])) &&
+        inMeeting(id) &&
+        !exists(/databases/$(database)/documents/meetings/$(id)/participants/$(resource.data.hostId)) &&
+        request.resource.data.hostId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hostId', 'hostName']);
+    }
+    function adminNotYetClaimed() {
+      return !exists(/databases/$(database)/documents/system/bootstrap) ||
+             get(/databases/$(database)/documents/system/bootstrap).data.adminClaimed == false;
+    }
+
+    // First-ever registration claims admin, atomically with the bootstrap flag.
+    match /system/bootstrap {
+      allow read: if signedIn();
+      allow create: if isMe(request.resource.data.claimedBy) && request.resource.data.adminClaimed == true;
+      allow update: if signedIn() && resource.data.adminClaimed == false &&
+                       request.resource.data.adminClaimed == true && request.resource.data.claimedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Private: email and phone are only visible to the member and to admins.
+    match /users/{uid} {
+      allow read: if isMe(uid) || isAdmin();
+      allow create: if isMe(uid) && request.resource.data.disabled == false &&
+        (request.resource.data.role == 'member' ||
+         (request.resource.data.role == 'admin' && adminNotYetClaimed() &&
+          getAfter(/databases/$(database)/documents/system/bootstrap).data.get('claimedBy', '') == request.auth.uid));
+      allow update: if (isMe(uid) &&
+                        request.resource.data.role == resource.data.role &&
+                        request.resource.data.disabled == resource.data.disabled) ||
+                       (isAdmin() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'disabled']) &&
+                        validRole(request.resource.data.role) &&
+                        request.resource.data.disabled is bool);
+      allow delete: if false;
+    }
+
+    match /meetings/{meetingId} {
+      allow read: if active();
+      allow create: if canHost() && request.resource.data.hostId == request.auth.uid;
+      // The sitting host controls everything (end, hand over host, appoint moderators).
+      // Moderators may only run the floor: mute / speaking turns / remove / recording flag.
+      // Admins may manage a meeting but not take over a live one.
+      allow update: if
+        (active() && (
+          resource.data.hostId == request.auth.uid ||
+          (isAdmin() &&
+            !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['currentSpeakerUid', 'everyoneMuted', 'speakingMode', 'removedUids', 'recording', 'recordingBy', 'moderatorUids']) &&
+            (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['hostId', 'hostName']) ||
+              resource.data.status == 'scheduled')) ||
+          (request.auth.uid in resource.data.get('moderatorUids', []) &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['currentSpeakerUid', 'everyoneMuted', 'speakingMode', 'removedUids', 'recording', 'recordingBy', 'recordingStartedAt'])) ||
+          isHostClaim(meetingId)
+        )) ||
+        isSelfEndingTurn();
+      allow delete: if isAdmin() || (canHost() && resource.data.hostId == request.auth.uid);
+
+      match /participants/{uid} {
+        allow read: if active();
+        allow create: if isMe(uid) && active() &&
+          request.resource.data.handRaised == false &&
+          request.resource.data.forceMuted == false &&
+          meeting(meetingId).status == 'live' &&
+          !(request.auth.uid in meeting(meetingId).get('removedUids', []));
+        allow delete: if isMe(uid) || (isMeetingMod(meetingId) && uid != meeting(meetingId).hostId);
+        allow update:
+          if (isMe(uid) &&
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['muted', 'camOn', 'sharing', 'handRaised', 'handRaisedAt'])) ||
+             (isMeetingMod(meetingId) && uid != meeting(meetingId).hostId &&
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['handRaised', 'handRaisedAt', 'forceMuted']));
+      }
+
+      match /chat/{msgId} {
+        allow read: if inMeeting(meetingId) || isMeetingMod(meetingId);
+        allow create: if inMeeting(meetingId) && request.resource.data.senderId == request.auth.uid &&
+                         request.resource.data.text is string && request.resource.data.text.size() <= 2000;
+        allow delete: if isMeetingMod(meetingId);
+        allow update: if false;
+      }
+      // Shared background music: only the host and moderators choose what plays; links must be https.
+      match /music/{docId} {
+        allow read: if inMeeting(meetingId);
+        allow write: if isMeetingMod(meetingId) &&
+          request.resource.data.title is string && request.resource.data.title.size() <= 200 &&
+          request.resource.data.url is string && request.resource.data.url.size() <= 2000 &&
+          (request.resource.data.url == '' || request.resource.data.url.matches('https://.*'));
+      }
+      match /canvas/{docId} {
+        allow read: if inMeeting(meetingId);
+        allow write: if inMeeting(meetingId) && request.resource.data.text.size() < 20000;
+      }
+    }
+
+    // Music library: hosts and admins add songs; everyone signed in can read them.
+    match /musicTracks/{id} {
+      allow read: if active();
+      allow create: if canHost() && request.resource.data.addedBy == request.auth.uid &&
+        request.resource.data.title is string && request.resource.data.title.size() <= 200 &&
+        request.resource.data.url is string && request.resource.data.url.matches('https://.*');
+      allow delete: if isAdmin() || (canHost() && resource.data.addedBy == request.auth.uid);
+      allow update: if false;
+    }
+
+    match /announcements/{id} {
+      allow read: if active();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Moderated: members only see approved items (plus their own submissions).
+    match /testimonies/{id} {
+      allow read: if isAdmin() ||
+        (active() && (resource.data.status == 'approved' || resource.data.authorId == request.auth.uid));
+      allow create: if active() && request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.title is string && request.resource.data.title.size() <= 200 &&
+        request.resource.data.body is string && request.resource.data.body.size() <= 10000;
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedAt', 'rejectReason']);
+      allow delete: if isAdmin() || (isMe(resource.data.authorId) && resource.data.status == 'pending');
+    }
+
+    match /recordings/{id} {
+      allow read: if active();
+      // Hosts/admins, or whoever is (or was) host or moderator of that meeting.
+      allow create: if active() && request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.meetingId is string &&
+        (canHost() || isMeetingMod(request.resource.data.meetingId));
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['meetingTitle', 'description']);
+      allow delete: if isAdmin();
+    }
+
+    // Personal notifications (e.g. "your testimony was published"). Admins write them; members read and mark their own.
+    match /notifications/{id} {
+      allow read: if isMe(resource.data.userId);
+      allow update: if isMe(resource.data.userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isMe(resource.data.userId);
+      allow create: if isAdmin() &&
+        request.resource.data.userId is string &&
+        request.resource.data.title is string && request.resource.data.title.size() <= 200 &&
+        request.resource.data.read == false;
+    }
+
+    // Community activity feed (new announcement, meeting live, new recording...). Everyone signed in reads it;
+    // "unread" is worked out from users/{uid}.notifSeenAt, so no per-member copies and no server are needed.
+    match /feed/{id} {
+      allow read: if active();
+      allow create: if active() &&
+        request.resource.data.keys().hasOnly(['type', 'title', 'body', 'link', 'refId', 'createdBy', 'createdByName', 'createdAt', 'visibleAt']) &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.body is string && request.resource.data.body.size() <= 400 &&
+        request.resource.data.link is string && request.resource.data.link.size() <= 300 && request.resource.data.link.matches('/.*') &&
+        request.resource.data.visibleAt is timestamp &&
+        request.resource.data.visibleAt > request.time - duration.value(1, 'h') &&
+        (request.resource.data.type == 'announcements' || request.resource.data.visibleAt < request.time + duration.value(1, 'h')) &&
+        (
+          (request.resource.data.type in ['announcements', 'admin', 'testimonies'] && isAdmin()) ||
+          (request.resource.data.type == 'meetings' && canHost()) ||
+          (request.resource.data.type == 'recordings' && request.resource.data.refId is string && request.resource.data.refId.size() > 0 &&
+            get(/databases/$(database)/documents/recordings/$(request.resource.data.refId)).data.createdBy == request.auth.uid)
+        );
+      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
+      allow update: if false;
+    }
+  }
+}

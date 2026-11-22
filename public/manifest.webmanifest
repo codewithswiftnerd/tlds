@@ -1,0 +1,16 @@
+{
+  "name": "TLDS LIVE",
+  "short_name": "TLDS LIVE",
+  "description": "Tree of Life Discipleship School: live meetings, recordings, announcements and testimonies.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B2B1D",
+  "theme_color": "#0B2B1D",
+  "icons": [
+    { "src": "/images/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/images/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/images/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
