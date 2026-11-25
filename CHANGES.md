@@ -1,3 +1,16 @@
+## Splash intro
+
+- Animated intro when the app is opened: a green ball bounces out "MEET, LISTEN, GROW TOGETHER.", floods the screen green, "TLDS LIVE" writes in with the logo, then the green shrinks away to white. About 8 seconds, once per visit, tap anywhere to skip, and turned off for people who set their phone to reduce motion.
+
+## New look (Bolt-inspired, TLDS greens)
+
+- White top navigation bar with pill links on desktop; white top bar and pill-style bottom tabs on phones.
+- Home page: big rounded hero with greeting and two main buttons, "Everything in one place" service cards, sections in rounded cards.
+- Bold Plus Jakarta Sans headings, pill buttons, filled rounded inputs, rounded cards and modals everywhere.
+- Login page: rounded photo panel and bigger, bolder form.
+- Dark green footer with links on desktop.
+- Meeting room look unchanged.
+
 ## Fixes: loading errors, vanishing announcements, stuck uploads, login photo
 
 - **No more database indexes needed.** Meetings, testimonies and notifications are now sorted in the app

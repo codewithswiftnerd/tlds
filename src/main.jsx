@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import App from './App';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import Splash from './components/common/Splash';
 import './styles/index.css';
 import './services/install';
 
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')).render(
       <ToastProvider>
         <AuthProvider>
           <App />
+          <Splash />
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

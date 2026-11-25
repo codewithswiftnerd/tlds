@@ -58,22 +58,32 @@ export default function AppLayout() {
   const more = items_.filter((i) => !bottom.includes(i));
   const badge = (to) => (to === '/notifications' && unread ? <span className="nav-badge">{unread > 9 ? '9+' : unread}</span> : null);
   const signOut = () => logout().then(() => nav('/login'));
+  const desk = items_.filter((i) => !['/notifications', '/profile'].includes(i.to));
+  const roleName = profile.role === 'admin' ? 'Administrator' : profile.role === 'host' ? 'Meeting host' : 'Member';
 
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <div className="brand"><img src="/images/logo.jpg" alt="" width="32" height="32" /><span>TLDS LIVE</span></div>
-        <nav aria-label="Main">
-          {items_.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className="nav-item"><Icon size={18} /><span>{label}</span>{badge(to)}</NavLink>
-          ))}
-        </nav>
-        <div className="side-user">
-          <Avatar name={profile.name} size={32} />
-          <div><strong>{profile.name}</strong><small>{profile.role === 'admin' ? 'Administrator' : profile.role === 'host' ? 'Meeting host' : 'Member'}</small></div>
-          <button className="icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
+      {/* Desktop: white top bar with horizontal links (Bolt-style). */}
+      <header className="deskbar">
+        <div className="deskbar-in">
+          <NavLink to="/" className="brand"><img src="/images/logo.jpg" alt="" width="34" height="34" /><span>TLDS LIVE</span></NavLink>
+          <nav aria-label="Main" className="desk-nav">
+            {desk.map(({ to, label, end }) => (
+              <NavLink key={to} to={to} end={end} className="desk-link">{label}</NavLink>
+            ))}
+          </nav>
+          <div className="desk-right">
+            <NavLink to="/notifications" className="icon-btn round" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`} title="Notifications">
+              <Bell size={19} />{unread ? <span className="nav-badge float">{unread > 9 ? '9+' : unread}</span> : null}
+            </NavLink>
+            <NavLink to="/profile" className="me-chip" title="Your profile">
+              <Avatar name={profile.name} size={30} />
+              <span><strong>{profile.firstName || profile.name}</strong><small>{roleName}</small></span>
+            </NavLink>
+            <button className="icon-btn round" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>
+          </div>
         </div>
-      </aside>
+      </header>
 
       <header className="topbar">
         <div className="brand"><img src="/images/logo.jpg" alt="" width="28" height="28" /><span>TLDS LIVE</span></div>
@@ -85,9 +95,30 @@ export default function AppLayout() {
         <Outlet />
       </main>
 
+      <footer className="app-foot">
+        <div className="app-foot-in">
+          <div className="foot-brand">
+            <div className="brand light"><img src="/images/logo.jpg" alt="" width="34" height="34" /><span>TLDS LIVE</span></div>
+            <p>Tree of Life Discipleship School. Meet, listen and grow together.</p>
+          </div>
+          <nav className="foot-col" aria-label="Community">
+            <h3>Community</h3>
+            <NavLink to="/meetings">Meetings</NavLink><NavLink to="/recordings">Recordings</NavLink>
+            <NavLink to="/announcements">Announcements</NavLink><NavLink to="/testimonies">Testimonies</NavLink>
+          </nav>
+          <nav className="foot-col" aria-label="Account">
+            <h3>Account</h3>
+            <NavLink to="/profile">Profile</NavLink><NavLink to="/notifications">Notifications</NavLink>
+            {isAdmin && <NavLink to="/admin">Admin</NavLink>}
+            <button type="button" onClick={signOut}>Sign out</button>
+          </nav>
+        </div>
+        <p className="foot-copy">© {new Date().getFullYear()} Tree of Life Discipleship School</p>
+      </footer>
+
       <nav className="bottomnav" aria-label="Main">
         {bottom.map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className="bn-item"><Icon size={20} /><span>{label === 'Announcements' ? 'News' : label}</span></NavLink>
+          <NavLink key={to} to={to} end={end} className="bn-item"><span className="bn-icon"><Icon size={20} /></span><span>{label === 'Announcements' ? 'News' : label}</span></NavLink>
         ))}
         <button className={`bn-item ${sheet ? 'active' : ''}`} onClick={() => setSheet((v) => !v)} aria-expanded={sheet}>
           <span className="bn-icon"><MoreHorizontal size={20} />{unread ? <span className="dot-badge" aria-hidden="true" /> : null}</span><span>More</span>
